@@ -3,7 +3,7 @@ import { newKitFromWeb3 } from "@celo/contractkit";
 import BigNumber from "bignumber.js";
 import erc20Abi from "../contract/erc20.abi.json";
 import ImageStockAbi from "../contract/imagestock.abi.json";
-require('arrive');
+require("arrive");
 
 const ERC20_DECIMALS = 18;
 const cUSDContractAddress = "0xb053651858F145b3127504C1045a1FEf8976BFfB";
@@ -46,10 +46,16 @@ async function approve(_price) {
 }
 
 const getBalance = async function () {
-  const totalBalance = await kit.getTotalBalance(kit.defaultAccount);
+  try {
+    const totalBalance = await kit.getTotalBalance(kit.defaultAccount);
   const cUSDBalance = totalBalance.cUSD.shiftedBy(-ERC20_DECIMALS).toFixed(2);
   document.getElementById("balance").innerHTML = cUSDBalance;
   return cUSDBalance;
+  } catch (error) {
+    notification(`⚠️ ${error}.`);
+
+  }
+  
 };
 
 document.querySelector("#newImageBtn").addEventListener("click", async (e) => {
@@ -61,10 +67,10 @@ document.querySelector("#newImageBtn").addEventListener("click", async (e) => {
 
   notification(`⌛ Adding "${params[0]}"...`);
   try {
-    const result = await contract.methods
+    await contract.methods
       .addImage(...params)
       .send({ from: kit.defaultAccount });
-    console.log("launch result", result);
+    // console.log("launch result", result);
   } catch (error) {
     notification(`⚠️ ${error}.`);
   }
@@ -73,7 +79,9 @@ document.querySelector("#newImageBtn").addEventListener("click", async (e) => {
 });
 
 async function supportImage(index) {
-  const amount = new BigNumber(document.getElementById(`supportAmount${index}`).value)
+  const amount = new BigNumber(
+    document.getElementById(`supportAmount${index}`).value
+  )
     .shiftedBy(ERC20_DECIMALS)
     .toString();
 
@@ -84,7 +92,7 @@ async function supportImage(index) {
     await approve(amount);
   } catch (error) {
     notification(`⚠️ ${error}.`);
-    console.log(error);
+    // console.log(error);
   }
 
   notification(`⌛ Awaiting payment for "${images[index].title}"...`);
@@ -94,7 +102,7 @@ async function supportImage(index) {
       .downloadImage(...params)
       .send({ from: kit.defaultAccount });
 
-    console.log("Support Result:", result);
+    // console.log("Support Result:", result);
 
     notification(`🎉 You successfully supported "${images[index].title}".`);
 
@@ -106,38 +114,42 @@ async function supportImage(index) {
 }
 
 const getImages = async function () {
-  const _imageCount = await contract.methods.getImageCount().call();
-  const _images = [];
+  try {
+    const _imageCount = await contract.methods.getImageCount().call();
+    const _images = [];
 
-  console.log("Images: " + _imageCount);
-  for (let i = 0; i < _imageCount; i++) {
-    let _image = new Promise(async (resolve, reject) => {
-      let image = await contract.methods.fetchImage(i).call();
+    console.log("Images: " + _imageCount);
+    for (let i = 0; i < _imageCount; i++) {
+      let _image = new Promise(async (resolve, reject) => {
+        let image = await contract.methods.fetchImage(i).call();
 
-      resolve({
-        index: i,
-        author: image[0],
-        title: image[1],
-        image: image[2],
-        description: image[3],
-        premium: image[4],
-        raised: new BigNumber(image[5]),
-        supporters: image[6],
+        resolve({
+          index: i,
+          author: image[0],
+          title: image[1],
+          image: image[2],
+          description: image[3],
+          premium: image[4],
+          raised: new BigNumber(image[5]),
+          supporters: image[6],
+        });
       });
-    });
 
-    _images.push(_image);
+      _images.push(_image);
+    }
+
+    images = await Promise.all(_images);
+
+    renderImages();
+  } catch (error) {
+    notification(`⚠️ ${error}.`);
   }
-
-  images = await Promise.all(_images);
-
-  renderImages();
 };
 
 function renderImages() {
   document.getElementById("imageList").innerHTML = "";
 
-  console.log(images);
+  // console.log(images);
   images.forEach((_image) => {
     const newDiv = document.createElement("div");
     newDiv.className = "col-md-4";
@@ -150,7 +162,7 @@ function renderImages() {
 }
 
 function notification(_text) {
-  console.log(_text);
+  // console.log(_text);
   document.querySelector(".alert").style.display = "block";
   document.querySelector("#notification").textContent = _text;
 }
@@ -202,36 +214,27 @@ function imageTemplate(_image) {
     </div>
   `;
 }
- 
 
 let hasArrived = false;
 
 window.addEventListener("load", async () => {
   document.arrive(".imageTemplates", () => {
-    
-    if(!hasArrived) {
+    if (!hasArrived) {
+      hasArrived = true;
 
-      hasArrived = true
+      const supportBtns = document.querySelectorAll("button.supportBtn");
 
-      const supportBtns = document.querySelectorAll('button.supportBtn')
-      
       supportBtns.forEach((supportBtn) => {
+        supportBtn.addEventListener("click", async () => {
+          const index = supportBtn.getAttribute("index-value");
 
-      supportBtn.addEventListener('click', async () => {
+          // console.log(index);
 
-        const index = supportBtn.getAttribute('index-value')
-
-        console.log(index)
-
-        await supportImage(parseInt(index));
-
-      })
-      
-    })
+          await supportImage(parseInt(index));
+        });
+      });
     }
-
   });
- 
 });
 
 function supportModal(_index) {
@@ -264,6 +267,7 @@ function supportModal(_index) {
                     id="supportAmount${_index}"
                     class="form-control mb-2 "
                     placeholder="Support in cUSD"
+                    required
                   />
                 </div>
               </div>
